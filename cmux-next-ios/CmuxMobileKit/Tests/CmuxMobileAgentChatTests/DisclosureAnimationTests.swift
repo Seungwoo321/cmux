@@ -418,6 +418,12 @@ import UIKit
             return label
         }
         let label = try #require(labels.first, "the bubble's text")
+        // The bubble's top as the reader sees it, for the PR and the ticket.
+        chat.window.layoutIfNeeded()
+        let shot = UIGraphicsImageRenderer(bounds: chat.window.bounds).image { _ in
+            chat.window.drawHierarchy(in: chat.window.bounds, afterScreenUpdates: true)
+        }
+        if let png = shot.pngData() { Attachment.record(png, named: "long-prompt-bubble-top.png") }
         let drawn = label.textRect(forBounds: label.bounds, limitedToNumberOfLines: 0).height
         let fits = label.sizeThatFits(CGSize(width: label.bounds.width, height: .greatestFiniteMagnitude)).height
         let frameHeight: CGFloat = label.bounds.height
