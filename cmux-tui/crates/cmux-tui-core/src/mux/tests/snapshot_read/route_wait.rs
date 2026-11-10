@@ -24,7 +24,6 @@ fn spread(mut values: Vec<u64>) -> (usize, u64, u64, u64) {
 }
 
 #[test]
-#[ignore = "a measure: prints the waits of the snapshot builder beside real mutators at 826 workspaces"]
 fn snapshot_route_wait_at_826_workspaces() {
     const WORKSPACES: usize = 826;
     const TERMINAL_ROUNDS: usize = 20;
@@ -113,4 +112,8 @@ fn snapshot_route_wait_at_826_workspaces() {
         );
     }
     assert!(reads > 0, "setup: the reader read the snapshot beside the mutators");
+    // Non-landing measure branch: a controller test step shows the output of a failed test only.
+    panic!(
+        "MEASURE DONE (not a failure of the code): the snapshot-route-wait lines above are the result"
+    );
 }
