@@ -1,0 +1,35 @@
+name: scratch a-hide-acpmux compile
+
+# Scratch compile proof for the a-hide-acpmux change while the build fleet is down: builds the
+# CmuxNextApp target (and every module it uses, which holds each changed Swift file) on Blacksmith
+# macOS. Lives only on its side branch; never lands.
+on:
+  push:
+    branches: [scratch/a-hide-acpmux-compile]
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: blacksmith-12vcpu-macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          submodules: false
+          fetch-depth: 2
+      - name: Select Xcode
+        run: ./scripts/select-ci-xcode.sh
+      - name: Build CmuxNextApp and CmuxNextSettings
+        working-directory: Packages/macOS/CmuxNext
+        run: |
+          set -euo pipefail
+          git -C "$GITHUB_WORKSPACE" log -1 --format='compiling %H %s' HEAD~1
+          for target in CmuxNextActions CmuxNextAgentPane CmuxNextSettings CmuxNextApp; do
+            echo "::group::swift build --target $target"
+            swift build --configuration debug --target "$target"
+            echo "::endgroup::"
+          done
+          echo "COMPILE_OK $(git -C "$GITHUB_WORKSPACE" rev-parse HEAD~1)"
