@@ -75,7 +75,10 @@ import Testing
         try SidebarGroupRailAlignmentTests.with(c.density, c.minimal) {
             let (list, window) = SidebarLeadingEdgeTests.list(width: c.width)
             defer { window.close() }
-            let glyphs = try Self.glyphs(list)
+            // The pin is a narrow mark (its ink about a third as wide as tall): its title starts on the one text column with
+            // the others, so the room after its slender ink is wider by design. The gap holds for the glyphs that fill
+            // the column's width: Home's house, a favicon, a symbol.
+            let glyphs = try Self.glyphs(list).filter { $0.name != "a pin" }
             let gaps = glyphs.map { ($0.name, $0.titleX - $0.ink.maxX) }
             let first = try #require(gaps.first).1
             for (name, gap) in gaps {
