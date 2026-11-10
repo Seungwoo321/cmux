@@ -623,6 +623,7 @@ struct AgentChatJumpButton: View {
                 .buttonStyle(.plain)
                 .transition(.scale(scale: 0.85).combined(with: .opacity))
                 .accessibilityLabel("Jump to bottom")
+                .accessibilityValue("stackMaxY=\(Int(surface.stackMaxY ?? -1)) stackTop=\(Int(surface.bottomStackTop ?? -1))")
             }
         }
         // The host's fixed size (`ChatTranscriptController.jumpHostSize`):
