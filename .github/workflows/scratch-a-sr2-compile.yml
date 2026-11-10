@@ -1,0 +1,26 @@
+name: scratch a-sr2 compile
+
+# Scratch (side branch a-sr2-compile-1 only, never on feat-cmux-next): the fleet controller is down,
+# so run the SR2 route change's tests on Blacksmith.
+on:
+  push:
+    branches: [a-sr2-compile-1]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: blacksmith-6vcpu-macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 2
+      - name: First-turn cost route probe and count fallback tests
+        run: |
+          set -euo pipefail
+          bash -n scripts/ci/chief-first-turn-cost.sh
+          python3 -m py_compile Native/OptChat/optchat-chief/measure/first_turn_cost.py cmux-next-ios/verify/parity/rmac.py
+          bash scripts/ci/tests/first-turn-cost-route-probe.test.sh
+          bash scripts/ci/tests/first-turn-cost-count-fallback.test.sh
