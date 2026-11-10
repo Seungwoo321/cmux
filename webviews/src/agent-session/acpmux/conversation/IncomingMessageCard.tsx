@@ -95,7 +95,11 @@ const SENDER_LOGO_SIZE = 12;
 /// its harness's mark, else the neutral agent glyph in its own stable tone.
 export function SenderMark({ message }: { message: IncomingMessage }) {
   const chief = useChiefFace(message.chief);
-  const sender = useSenderChat(message.chief ? "" : (message.lookup ?? message.name), message.sessionId);
+  // cmux's own notice (agentNotice.ts `system`) is no chat: a chat named `cmux` never stands in for it.
+  const sender = useSenderChat(
+    message.chief || message.notice?.system ? "" : (message.lookup ?? message.name),
+    message.sessionId,
+  );
   const avatar = useAgentAvatar(sender.sessionId);
   const harness = senderHarness(sender.harness, message.harness);
   const picture = message.chief ? chief?.src : avatar;
@@ -132,7 +136,7 @@ export function SenderMark({ message }: { message: IncomingMessage }) {
 /// A received message's mark in the one message row's icon column (AgentMessageRow.tsx): its
 /// tooltip is what the sender runs on, as the mark's beside a name always said.
 export function ReceivedMark({ message }: { message: IncomingMessage }) {
-  const sender = useSenderChat(message.chief ? "" : message.name, message.sessionId);
+  const sender = useSenderChat(message.chief || message.notice?.system ? "" : message.name, message.sessionId);
   const about = message.chief
     ? undefined
     : senderAbout(senderHarness(sender.harness, message.harness), sender.run, message);
@@ -204,7 +208,10 @@ export function SenderChip({
   // A Chief's message names the Chief and draws its avatar (chiefFace.ts); its turn session is no
   // chat of the list, so no listed chat with its name stands in for it, and it is no chat to open.
   const chief = useChiefFace(message.chief);
-  const sender = useSenderChat(message.chief ? "" : (message.lookup ?? message.name), message.sessionId);
+  const sender = useSenderChat(
+    message.chief || message.notice?.system ? "" : (message.lookup ?? message.name),
+    message.sessionId,
+  );
   const recorded = useSenderSessionName(message, false);
   const name =
     (message.chief && chief?.name) ||
@@ -466,7 +473,10 @@ export function IncomingMessageLine({
   // Its turn session is no chat of the list, so no listed chat with its name stands in for it.
   const chief = useChiefFace(message.chief);
   // A person is never a chat: their name never finds one (a guest names themselves).
-  const sender = useSenderChat(person || message.chief ? "" : message.name, person ? undefined : message.sessionId);
+  const sender = useSenderChat(
+    person || message.chief || message.notice?.system ? "" : message.name,
+    person ? undefined : message.sessionId,
+  );
   // The session's own name, as SenderName shows it: a peer's `<machine>/<name>` reads as `<name>` in
   // the toggle's label and the reply editor's, the machine already shown beside it.
   const recorded = useSenderSessionName(message, Boolean(person));

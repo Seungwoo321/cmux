@@ -77,7 +77,7 @@ nonisolated enum AgentChatCopyActionCatalog: ActionCatalogGroup {
             ),
             ActionDescriptor(
                 id: "agentChat.copyAcpmuxSessionFile",
-                title: String(localized: "action.agentChat.copyAcpmuxSessionFile", defaultValue: "Copy acpmux Session File", bundle: .module),
+                title: String(localized: "action.agentChat.copyAcpmuxSessionFile", defaultValue: "Copy cmux Session File", bundle: .module),
                 keywords: ["agent", "chat", "acpmux", "session", "session.json", "json", "record", "copy"],
                 category: .agents, symbol: "curlybraces", surfaces: [.palette], requires: focusedChat, targets: [.pane],
                 surfacePlan: guiClipboard
