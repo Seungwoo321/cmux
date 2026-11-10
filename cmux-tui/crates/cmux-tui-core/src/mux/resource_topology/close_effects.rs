@@ -843,6 +843,8 @@ impl Mux {
         let mut workspace_close = None;
         let mut workspace_was_active = false;
         if let Some((workspace, index, workspace_key)) = workspace_metadata {
+            // A checked read, and first: no step below runs for a workspace that is gone.
+            let closed = state.workspaces.get(index).context("workspace disappeared")?;
             workspace_was_active = self.remove_workspace_for_close(
                 registry,
                 &mut projected,
@@ -853,7 +855,7 @@ impl Mux {
                 Some(self.workspace_close_record(&projected, workspace, &workspace_key, index));
             // Every index change of this close is inside the closed workspace: drop its entries
             // and no other. The rebuild of every index walked the whole session for one close.
-            forget_closed_workspace_indexes(&mut projected, &state.workspaces[index], index);
+            forget_closed_workspace_indexes(&mut projected, closed, index);
             split_index_changed = false;
         } else if let Some(emptied) = self.close_emptied_workspaces_for_resource_close_locked(
             registry,
