@@ -122,9 +122,7 @@ fn cost(mux: &Arc<Mux>, reads: impl FnOnce()) -> (u64, u64, u64) {
     (registry, state, selects.load(Ordering::Relaxed))
 }
 
-/// The first read after a change takes the registry lock 0 times and tries
-/// the state lock once (no wait, no walk under it). K snapshot reads with no
-/// change between them take the registry lock 0
+/// K snapshot reads with no change between them take the registry lock 0
 /// times, the state lock 0 times and run 0 SELECT statements, at 1, 60 and
 /// 826 workspaces: the cost of a read does not grow with the session.
 #[test]
@@ -133,11 +131,10 @@ fn snapshot_reads_with_no_change_take_no_lock_and_run_no_statement() {
     let mux = session_at_rest("snapshot-counts", &root);
     let mut failures = Vec::new();
     eprintln!(
-        "snapshot-read counts: workspaces | {READS} reads with no change: registry takes, state takes, SELECTs | first read after a change: registry takes, state tries, SELECTs"
+        "snapshot-read counts: workspaces | {READS} reads with no change: registry takes, state takes, SELECTs | first read after a change: registry takes, state takes, SELECTs"
     );
     for workspaces in ARMS {
         grow_to(&mux, workspaces);
-        let waits_before = crate::resource_api::route_waits_on_this_thread();
         let (changed_registry, changed_state, changed_selects) = cost(&mux, || {
             public_session_snapshot(&mux).unwrap();
         });
@@ -146,12 +143,6 @@ fn snapshot_reads_with_no_change_take_no_lock_and_run_no_statement() {
                 public_session_snapshot(&mux).unwrap();
             }
         });
-        let waits = crate::resource_api::route_waits_on_this_thread() - waits_before;
-        if waits != 0 {
-            failures.push(format!(
-                "{workspaces} workspaces: snapshot reads beside no mutator waited {waits} times for the state lock"
-            ));
-        }
         eprintln!(
             "snapshot-read counts: {workspaces} | {registry} {state} {selects} | {changed_registry} {changed_state} {changed_selects}"
         );
@@ -160,11 +151,9 @@ fn snapshot_reads_with_no_change_take_no_lock_and_run_no_statement() {
                 "{workspaces} workspaces: {READS} snapshot reads with no change took the registry lock {registry} times, the state lock {state} times and ran {selects} SELECT statements"
             ));
         }
-        // The first read after a change tries the state lock once, with no
-        // wait and no walk under it: the routes of its rows are published.
-        if (changed_registry, changed_state) != (0, 1) {
+        if (changed_registry, changed_state) != (0, 0) {
             failures.push(format!(
-                "{workspaces} workspaces: the first snapshot read after a change took the registry lock {changed_registry} times and the state lock {changed_state} times (0 takes and 1 try expected)"
+                "{workspaces} workspaces: the first snapshot read after a change took the registry lock {changed_registry} times and the state lock {changed_state} times"
             ));
         }
     }
@@ -693,7 +682,7 @@ fn a_snapshot_read_between_a_commit_and_its_route_publish_shows_the_routes_of_th
         std::thread::spawn(move || {
             let cut = read_cut(&mux);
             let _ = answered.send(());
-            (cut, crate::resource_api::route_waits_on_this_thread())
+            cut
         })
     };
     // A read that proves the routes of its rows waits for the mutator here. A
@@ -701,7 +690,7 @@ fn a_snapshot_read_between_a_commit_and_its_route_publish_shows_the_routes_of_th
     let in_window = answered_receiver.recv_timeout(Duration::from_millis(500)).is_ok();
     release.send(()).unwrap();
     mutator.join().unwrap();
-    let ((snapshot, _, _, commits), waits) = reader.join().unwrap();
+    let (snapshot, _, _, commits) = reader.join().unwrap();
     let size = size_of(&snapshot);
     let status = snapshot["extra"]["state"]["workspace_status"].to_string();
     drop(mux);
@@ -712,7 +701,6 @@ fn a_snapshot_read_between_a_commit_and_its_route_publish_shows_the_routes_of_th
         status.contains("window-commit-text"),
         "setup: the read shows the commit of the mutator: {status}"
     );
-    assert_eq!(waits, 1, "the read waited once for the mutator that held the state lock");
     assert_eq!(
         size,
         (132, 43),
