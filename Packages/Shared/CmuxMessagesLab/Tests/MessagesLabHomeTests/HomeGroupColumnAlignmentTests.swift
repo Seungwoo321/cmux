@@ -91,7 +91,8 @@ import Testing
         let first = try #require(HomeAgentPills(payload, shape: .pill, width: body.width).pills.first)
         #expect(body.minX + first.rect.minX == bubble)
         // What is drawn: the pill's outline starts within a point of the bubble's edge (antialiasing).
-        let ink = try #require(try Self.firstInk(pillsRow))
+        let drawnInk = try Self.firstInk(pillsRow)
+        let ink = try #require(drawnInk)
         #expect(abs(ink - bubble) <= 1, "the pill draws from x \(ink), the bubble from \(bubble)")
     }
 
@@ -104,7 +105,8 @@ import Testing
         let bubble = try Self.bubbleLeft(rows, "m1")
         let notice = try #require(rows.first { $0.key == "notice" })
         // Its first glyph's ink (an "S") starts within 2 pt right of the line's left edge, a point in from the bubble's.
-        let ink = try #require(try Self.firstInk(notice))
+        let drawnInk = try Self.firstInk(notice)
+        let ink = try #require(drawnInk)
         #expect(ink >= bubble && ink <= bubble + 3, "the status line draws from x \(ink), the bubble from \(bubble)")
     }
 
@@ -114,7 +116,8 @@ import Testing
         s.ui.typing = [Self.chief]
         let rows = Self.rows(s, width: 560)
         let typing = try #require(rows.first { $0.key == "typing" })
-        #expect(RowDraw.typingBubble.minX + typing.cmuxIndent == (try Self.bubbleLeft(rows, "m1")))
+        let bubble = try Self.bubbleLeft(rows, "m1")
+        #expect(RowDraw.typingBubble.minX + typing.cmuxIndent == bubble)
     }
 
     /// "Edited" under the Chief's bubble lines up with the bubble's text, like the sender name above it.
@@ -122,7 +125,8 @@ import Testing
         let s = Self.state([Self.text("m1", "Cookie toast", at: 0, edited: true)])
         let rows = Self.rows(s, width: 560)
         let edited = try #require(rows.first { $0.key == "edited:m1" })
-        let ink = try #require(try Self.firstInk(edited))
+        let drawnInk = try Self.firstInk(edited)
+        let ink = try #require(drawnInk)
         #expect(ink >= RowDraw.senderNameLeft - 1 && ink <= RowDraw.senderNameLeft + 2,
                 "Edited draws from x \(ink), the bubble's text from \(RowDraw.senderNameLeft)")
     }
@@ -132,9 +136,13 @@ import Testing
         var s = Self.state([Self.text("m1", "Cookie toast", at: 0), try Self.pills(at: 1)], group: false)
         s.ui.notice = "Sending a message"
         let rows = Self.rows(s, width: 560)
-        #expect(try Self.bubbleLeft(rows, "m1") == Fixture.leftEdge)
-        #expect(try Self.bubbleLeft(rows, "pills") == Fixture.leftEdge)
-        let ink = try #require(try Self.firstInk(try #require(rows.first { $0.key == "notice" })))
+        let textLeft = try Self.bubbleLeft(rows, "m1")
+        let pillsLeft = try Self.bubbleLeft(rows, "pills")
+        #expect(textLeft == Fixture.leftEdge)
+        #expect(pillsLeft == Fixture.leftEdge)
+        let notice = try #require(rows.first { $0.key == "notice" })
+        let drawnInk = try Self.firstInk(notice)
+        let ink = try #require(drawnInk)
         #expect(ink >= Fixture.leftEdge && ink <= Fixture.leftEdge + 3)
     }
 }

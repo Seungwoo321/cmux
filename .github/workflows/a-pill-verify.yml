@@ -16,9 +16,20 @@ jobs:
         run: swift --version
       - name: MessagesLabHome tests (alignment, progress, neighbours)
         run: |
+          set +e
           swift test --package-path Packages/Shared/CmuxMessagesLab \
-            --filter 'HomeGroupColumnAlignmentTests|HomeTurnProgressTests|HomeGroupSenderTests|HomeRunTailTests|HomeAgentPillRowTests|HomeNoticeShimmerTests|HomeTypingGapTests|HomeGroupReplyQuoteTests|HomeAgentMessageFoldTests' 2>&1 | tail -150
-          exit ${PIPESTATUS[0]}
+            --filter 'HomeGroupColumnAlignmentTests|HomeTurnProgressTests|HomeGroupSenderTests|HomeRunTailTests|HomeAgentPillRowTests|HomeNoticeShimmerTests|HomeTypingGapTests|HomeGroupReplyQuoteTests|HomeAgentMessageFoldTests' > test.log 2>&1
+          code=$?
+          echo "=== errors, crashes, failed tests ==="
+          grep -nE 'error:|Assertion|Stack dump|While (type-checking|evaluating|emitting)|Please submit a bug|✘|Test run with|Suite .* failed|recorded an issue' test.log | head -150
+          echo "=== tail ==="
+          tail -60 test.log
+          exit $code
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: test-log-${{ github.ref_name == 'scratch/a-pill-verify-red' && 'red' || 'green' }}
+          path: test.log
       - name: Capture the scene, light and dark (scratch)
         if: always()
         run: |
