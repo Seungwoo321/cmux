@@ -144,11 +144,20 @@ nonisolated enum AcpmuxVersionHandoff {
         }
         logger.info("acpmux \(pid) runs build \(status.build ?? "?", privacy: .public)\(isReplaced ? " from a replaced bundle" : "", privacy: .public)\(status.agentHosts ? "" : " without agent hosts; its chats resume from disk", privacy: .public); handing off to \(bundled ?? "?", privacy: .public)")
         do {
-            try await AcpmuxStatusClient.shutdown(socketPath: environment.socketPath, home: environment.home)
+            // The app's own answer deadline (#35075), not the client's 2 s default: a daemon busy
+            // with large replies missed 2 s right after an update (cosmic-gray, 2026-11-10).
+            try await AcpmuxStatusClient.shutdown(socketPath: environment.socketPath, home: environment.home,
+                                                  deadline: AcpmuxEnvironment.answerDeadline)
             AgentPaneLaunchTimings.shared.mark("acpmux.handoff_shutdown_sent")
         } catch {
-            logger.error("acpmux handoff request failed: \(String(describing: error), privacy: .public)")
-            daemons.mark(home: environment.home, restarting: false)
+            logger.error("acpmux handoff request failed: \(String(describing: error), privacy: .public); the next lookup tries again")
+            // A request that never reached the daemon used nothing up: the socket's one handoff
+            // stays for the next lookup. Kept used, it left the replaced daemon running for the
+            // whole launch, and every chat's person proof with it ("Unverified sender", 2026-11-10).
+            handedOff.withLock { keys in
+                keys.remove(key)
+                daemons.mark(home: environment.home, restarting: false)
+            }
             return false
         }
         // The old daemon holds its lock until it exits; the new one needs it.
