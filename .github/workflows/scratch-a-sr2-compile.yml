@@ -1,7 +1,7 @@
 name: scratch a-sr2 compile
 
 # Scratch (side branch a-sr2-compile-1 only, never on feat-cmux-next): the fleet controller is down,
-# so run the SR2 route change's tests on Blacksmith.
+# so run the SR2 route change's tests on Blacksmith Linux, where the cmux-next checks job runs them.
 on:
   push:
     branches: [a-sr2-compile-1]
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: blacksmith-6vcpu-macos-26
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
