@@ -100,7 +100,7 @@ import {
   type ReferenceScopeCache,
 } from "./conversation/bareReferences";
 import { stopReadingAloud } from "./conversation/readAloud";
-import { heightFoldInFlight, heightFoldPlaying, settleFoldsIn } from "./conversation/fold";
+import { foldPlayingIn, heightFoldInFlight, heightFoldPlaying, settleFoldsIn } from "./conversation/fold";
 import { deliberateClick } from "./conversation/useAnchoredCollapse";
 import { isRegroupHold } from "./conversation/keepOpenedLineModel";
 import {
@@ -116,6 +116,7 @@ import {
   foldToggleAt,
   holdFold,
   keepFold,
+  notePlacement,
   pushUpCut,
   trimmedFoldRoom,
   verticalWheel,
@@ -2182,6 +2183,17 @@ function TranscriptView({
     },
     [reportRow, flushDrawn],
   );
+  /// Whether the row a held line sits in is not placed at its final height yet: its own fold still
+  /// plays, or it is drawn at a height the transcript has not measured (the observer reports it after
+  /// the browser lays it out, which under load comes long after the click). One row, one read.
+  const heldRowUnplaced = (line: HTMLElement): boolean => {
+    const row = line.closest<HTMLElement>(".acpmux-row");
+    if (!row) return false;
+    if (foldPlayingIn(row)) return true;
+    const known = row.dataset.rowId ? drawnRef.current.get(row.dataset.rowId)?.height : undefined;
+    const height = drawnHeightOf(row);
+    return known !== undefined && height !== undefined && Math.abs(height - known) >= 0.5;
+  };
   const observer = useMemo(
     () =>
       typeof ResizeObserver === "undefined"
@@ -3305,6 +3317,10 @@ function TranscriptView({
     const stack = bottomStackFold.current;
     const bottomStacking = Boolean(old && node && stack && foldAnchor.current?.toggle === stack.toggle);
     const heldFrom = node?.scrollTop ?? 0;
+    // Under load the held row's new height reaches this pass late (its ResizeObserver runs after the
+    // browser lays out what opened): the hold waits for it, then runs its span (foldAnchor.ts
+    // `notePlacement`), so a slow render never finds the hold over and follows the latest row.
+    if (old && node && foldAnchor.current) notePlacement(foldAnchor.current, heldRowUnplaced(foldAnchor.current.toggle));
     const folding = Boolean(!bottomStacking && old && node && foldAnchor.current && keepFold(foldAnchor.current, node));
     if (!folding && !bottomStacking) foldAnchor.current = undefined;
     if (folding && node) holdTop.current = node.scrollTop;
@@ -4805,9 +4821,8 @@ function TranscriptView({
         if (clicked === toggle) clicked = undefined;
       });
       const bottom = beginBottomStackFold(toggle, line, wasAtEnd);
-      // A keyboard click (detail 0) had no press: an older, abandoned one is not its place. The hold's
-      // clock starts once the toggle's change is drawn, however slow that render is (foldAnchor.ts).
-      foldAnchor.current = clickFold(line, event.detail > 0 ? pressed : undefined, undefined, toggle);
+      // A keyboard click (detail 0) had no press: an older, abandoned one is not its place.
+      foldAnchor.current = clickFold(line, event.detail > 0 ? pressed : undefined);
       holdTop.current = node?.scrollTop;
       pressed = undefined;
       if (!bottom) keepFoldRoom();
@@ -4820,7 +4835,7 @@ function TranscriptView({
     const notePressed = (event: PointerEvent) => {
       const toggle = event.button === 0 && node ? foldToggleAt(event.target, node) : undefined;
       pressedAt = toggle ? { x: event.clientX, y: event.clientY } : undefined;
-      pressed = toggle ? holdFold(foldHoldTarget(toggle, node ?? undefined), undefined, toggle) : undefined;
+      pressed = toggle ? holdFold(foldHoldTarget(toggle, node ?? undefined)) : undefined;
     };
     const dropPressed = () => {
       pressed = undefined;
@@ -4850,7 +4865,7 @@ function TranscriptView({
       const toggle = sameClick ? clicked! : header;
       const bottom = bottomStackFold.current?.toggle === header ? true : beginBottomStackFold(toggle, header, wasAtEnd);
       // The click that asked for it already holds this line at the place it was pressed at: keep it.
-      foldAnchor.current = clickFold(header, foldAnchor.current, undefined, toggle);
+      foldAnchor.current = clickFold(header, foldAnchor.current);
       holdTop.current = node.scrollTop;
       if (!bottom) keepFoldRoom();
     };

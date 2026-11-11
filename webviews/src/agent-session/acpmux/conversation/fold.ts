@@ -119,6 +119,13 @@ export function settleFoldsIn(root: Element): void {
   for (const [node, settle] of settling) if (root.contains(node)) settle();
 }
 
+/// Whether a fold plays inside `root` now (O(folds playing), never O(rows)): a held line's row is not
+/// placed at its final height until its own fold ends (foldAnchor.ts `notePlacement`).
+export function foldPlayingIn(root: Element): boolean {
+  for (const node of settling.keys()) if (root.contains(node)) return true;
+  return false;
+}
+
 /// A gap between two painted frames this long means the page is missing frames: about three at 60 Hz.
 export const FOLD_DROP_MS = 50; // motion-allow: a frame-drop threshold, not an animation's duration
 

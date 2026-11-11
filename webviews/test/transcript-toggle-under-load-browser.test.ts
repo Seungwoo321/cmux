@@ -6,9 +6,11 @@
 // the opened body neither held the line nor stopped following the latest row, and the view jumped to
 // the bottom with the clicked line and the group's header gone from it.
 //
-// Here the click's render is made slow on purpose (the page is busy for 1.2 s between the transcript's
-// hold and React's handler, as a render at that load is) while the turn streams: its reply grows every
-// 40 ms, each update busy for 8 ms more, and a new call joins the run mid-way ("Ran 4 commands").
+// The hold was timed from the click; the row's new height reached the transcript only after the
+// browser laid out what opened, and under load that came later than the hold lasted. Here that layout
+// is made slow on purpose (the page is busy for 1.2 s right after React drew the click, before the next
+// frame) while the turn streams: its reply grows every 40 ms, each update busy for 8 ms more, and a new
+// call joins the run part way ("Ran 4 commands").
 // Every collapsible kind the run draws is clicked so: the run's own line and a command's line.
 // - The clicked line opens and stays open through every streamed update.
 // - It stays on the pixel it was clicked at, and the run's header with it: the view stops following.
@@ -165,7 +167,7 @@ await requireBrowserLane("transcript-toggle-under-load-browser.test.ts", async (
     return page;
   };
 
-  type Watch = { line: number; header: number; expanded: boolean; inView: boolean };
+  type Watch = { line: number; header: number; expanded: boolean; inView: boolean; height: number };
   /// Marks the line `pick` names in the run (data-probe), makes the click on it slow, streams the
   /// reply, clicks it, and reads it at every painted frame until the stream ends.
   const slowClick = async (page: Page, pick: "run" | "command") => {
@@ -181,15 +183,16 @@ await requireBrowserLane("transcript-toggle-under-load-browser.test.ts", async (
       if (!line) throw new Error(`no ${which} line in the run: ${run.innerHTML.slice(0, 400)}`);
       document.querySelector("[data-probe]")?.removeAttribute("data-probe");
       line.dataset.probe = "true";
-      // The render the click starts takes 1.2 s: the page is busy after the transcript took its hold
-      // (its capture listener sits on the scroller, above this row) and before React's handler runs.
-      run.addEventListener(
+      // The browser lays out what the click opened 1.2 s late: the page is busy right after React's
+      // handler drew it (a window listener runs after the root's), before the next frame, as a
+      // render at that load is. The row's new height reaches the transcript only then.
+      window.addEventListener(
         "click",
         () => {
           const until = performance.now() + 1_200;
           while (performance.now() < until);
         },
-        { capture: true, once: true },
+        { once: true },
       );
       // Where the line and the run are when the reader presses: what the transcript holds.
       window.addEventListener(
@@ -252,12 +255,15 @@ await requireBrowserLane("transcript-toggle-under-load-browser.test.ts", async (
           header,
           expanded: line.getAttribute("aria-expanded") === "true",
           inView: box.top >= scroller.top - 0.5 && box.bottom <= scroller.bottom + 0.5,
+          height: document.querySelector<HTMLElement>(".acpmux-scroll")!.scrollHeight,
         };
       }, pick);
     await page.mouse.click(point.x, point.y);
-    const before = await page.evaluate(
+    const pressed = await page.evaluate(
       () => (window as unknown as { __pressed: { line: number; header: number } }).__pressed,
     );
+    const height = await page.evaluate(() => document.querySelector<HTMLElement>(".acpmux-scroll")!.scrollHeight);
+    const before = { ...pressed, height };
     // The stream runs on for 1.5 s after the click's render.
     await page.waitForTimeout(1_500);
     const during = await read();
@@ -297,6 +303,8 @@ await requireBrowserLane("transcript-toggle-under-load-browser.test.ts", async (
           if (Math.abs(header) > 2) failures.push(`${when}: the run's header moved ${header.toFixed(1)}px`);
         }
         if (await atLatest(page)) failures.push("the view still follows the latest row");
+        // The stream and the opened body grew the transcript, so a view that followed would have moved.
+        if (!(after.height > before.height + 100)) failures.push("the transcript did not grow under the click");
         console.log(`${name} ${pick}: ${JSON.stringify({ before, during, after })}`);
         expect(failures).toEqual([]);
         await page.close();

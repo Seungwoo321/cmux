@@ -283,19 +283,19 @@ const armUnderLoad: Play = async (ctx) => {
   view.cmuxGalleryArrive = () => view.cmuxAcpmuxBridge?.receive(structuredClone(arrivedSnapshot));
 };
 
-/// A click whose render is slow, as at load ~260 (Leo, 2026-11-10: "when things get slow this tool
-/// call expansion situatoin gets insanely f***ed"): the page is busy for `ms` between the transcript's
-/// hold and the row's own handler, while the turn's next snapshot lands. The clicked line opens where
-/// it was clicked and the view stops following (foldAnchor.ts `FOLD_DRAW_WAIT_MS`).
+/// A click whose layout is slow, as at load ~260 (Leo, 2026-11-10: "when things get slow this tool
+/// call expansion situatoin gets insanely f***ed"): the page is busy for `ms` right after React drew
+/// the click, before the browser lays out what opened, while the turn's next snapshot lands. The
+/// clicked line opens where it was clicked (foldAnchor.ts `notePlacement`).
 const slowClick = async (ctx: Parameters<Play>[0], line: HTMLElement, ms = 1_200) => {
   const row = line.closest<HTMLElement>(".acpmux-row")!;
-  row.addEventListener(
+  ctx.document.defaultView!.addEventListener(
     "click",
     () => {
       const until = performance.now() + ms;
       while (performance.now() < until);
     },
-    { capture: true, once: true },
+    { once: true },
   );
   const before = measure(ctx, line);
   const head = row.getBoundingClientRect().top;
