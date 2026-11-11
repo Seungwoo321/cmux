@@ -1,0 +1,86 @@
+commit eb4f3eb1d94c50aca99ad51f9bb87661ccb93636
+Author: lawrencecchen <54008264+lawrencecchen@users.noreply.github.com>
+Date:   Tue Nov 10 07:02:21 2026 -0800
+
+    cmux-tui-core: registry connections keep their hot statements compiled
+    
+    The daemon compiled every SQLite statement on every call: cmux-tui-core had
+    no prepare_cached at all, and the workspace's rusqlite build left the
+    statement cache feature off. A sample of agent hook ingress (the ignored
+    agent_hook_ingress_throughput_probe) showed statement compilation at about a
+    fifth of the daemon's SQLite CPU on that path: 14% of the journal writer,
+    33% of the journal fanout reader and 22% of the agent roster reader. Each
+    hook runs the same few dozen statements (the journal INSERTs, the topology
+    subject CTE, receipt and causation lookups, the hook pending row, the
+    roster's kind reads and snapshot write).
+    
+    Now every registry connection (the read-write one, the read-only readers,
+    the in-memory registry) keeps up to 128 compiled statements
+    (REGISTRY_STATEMENT_CACHE_CAPACITY, least recently used out first; a
+    statement costs a few KiB), and the hot journal, hook and roster statements
+    use prepare_cached. rusqlite's `cache` feature is on (adds hashlink 0.11.1,
+    rusqlite's own default dependency; hashbrown 0.16.1 was already in the
+    graph). A cached statement is reset when it goes back to the cache, so it
+    holds no read snapshot or lock between uses.
+    
+    Nothing on disk changes: same schema, same rows, same transactions. A
+    rollback reads the same files.
+    
+    Test: reused_statements_read_every_later_commit (a long-lived reader and the
+    writer run the same statements again after each of six commits and must read
+    each commit).
+    
+    Measured (aws-m4pro-6, load about 25 on 14 cores, so wall time is noise; CPU
+    time of agent_hook_ingress_throughput_probe, 2,000 serial + 4,000 concurrent
+    hook events, 4 interleaved runs each, median): user+sys 4.56 s -> 3.69 s
+    (-19%), user 2.93 s -> 2.10 s (-28%).
+    
+    Tests on the build host: cmux-tui-core lib suite 4124 passed, 5 failed; the
+    same 5 run alone fail the same way on the base test binary (2 fail on both:
+    every_app_command_is_decided_for_the_owner_link,
+    a_persons_requests_answer_while_busy_sessions_saturate_the_registry) or pass
+    on both (3, load-sensitive in the full run).
+    
+    Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+diff --git a/cmux-tui/Cargo.lock b/cmux-tui/Cargo.lock
+index 54d2fa3df37..a5ab8cb2da6 100644
+--- a/cmux-tui/Cargo.lock
++++ b/cmux-tui/Cargo.lock
+@@ -3770,6 +3770,15 @@ dependencies = [
+  "serde_core",
+ ]
+ 
++[[package]]
++name = "hashlink"
++version = "0.11.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "824e001ac4f3012dd16a264bec811403a67ca9deb6c102fc5049b32c4574b35f"
++dependencies = [
++ "hashbrown 0.16.1",
++]
++
+ [[package]]
+ name = "heapless"
+ version = "0.9.3"
+@@ -6738,6 +6747,7 @@ dependencies = [
+  "bitflags 2.13.1",
+  "fallible-iterator",
+  "fallible-streaming-iterator",
++ "hashlink",
+  "libsqlite3-sys",
+  "smallvec",
+  "sqlite-wasm-rs",
+diff --git a/cmux-tui/Cargo.toml b/cmux-tui/Cargo.toml
+index 8b57e5d2101..7441aacb4ee 100644
+--- a/cmux-tui/Cargo.toml
++++ b/cmux-tui/Cargo.toml
+@@ -424,7 +424,7 @@ arc-swap = "1.9"
+ wait-timeout = "0.2"
+ # rusqlite 0.40's libsqlite3-sys build script requires Rust 1.95 without
+ # declaring that MSRV. Keep the workspace's advertised Rust 1.91 support.
+-rusqlite = { version = "=0.39.0", default-features = false, features = ["bundled", "hooks", "limits"] }
++rusqlite = { version = "=0.39.0", default-features = false, features = ["bundled", "cache", "hooks", "limits"] }
+ # Unicode normalization for history search folding (cmux-history). Already in
+ # the graph through url -> idna -> idna_adapter at this version; compiled
+ # data only, no new transitive code.

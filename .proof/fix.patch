@@ -1,0 +1,92 @@
+commit c196251c090108d89c1c17c98c22ff469edab988
+Author: Leo Li <cheerleaderleo@outlook.com>
+Date:   Wed Nov 11 00:17:29 2026 +0000
+
+    base red: the app FFI and layout reducer FFI locks drop hashlink again (rusqlite cache revert)
+    
+    5af8bd4e61b reverted eb4f3eb1d94 (rusqlite cache feature) three minutes after
+    #40883 added hashlink to these two locks, and updated cmux-tui/Cargo.lock only.
+    Both FFI workspaces failed --locked again. cargo update -w in each; nothing else
+    moves (the layout reducer lock only takes cargo canonical order).
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    Agent-Session: https://cmux.com/deeplink/agent?id=aid-d750cf10922c785efa64
+
+diff --git a/cmux-tui/crates/cmux-app-ffi/Cargo.lock b/cmux-tui/crates/cmux-app-ffi/Cargo.lock
+index d1191c5b7d8..83fc6814b2c 100644
+--- a/cmux-tui/crates/cmux-app-ffi/Cargo.lock
++++ b/cmux-tui/crates/cmux-app-ffi/Cargo.lock
+@@ -471,15 +471,6 @@ version = "0.17.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+ 
+-[[package]]
+-name = "hashlink"
+-version = "0.11.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "824e001ac4f3012dd16a264bec811403a67ca9deb6c102fc5049b32c4574b35f"
+-dependencies = [
+- "hashbrown 0.16.1",
+-]
+-
+ [[package]]
+ name = "heck"
+ version = "0.5.0"
+@@ -705,7 +696,6 @@ dependencies = [
+  "bitflags",
+  "fallible-iterator",
+  "fallible-streaming-iterator",
+- "hashlink",
+  "libsqlite3-sys",
+  "smallvec",
+  "sqlite-wasm-rs",
+diff --git a/cmux-tui/crates/cmux-layout-reducer-ffi/Cargo.lock b/cmux-tui/crates/cmux-layout-reducer-ffi/Cargo.lock
+index 52e1c64bc18..c15187bf81d 100644
+--- a/cmux-tui/crates/cmux-layout-reducer-ffi/Cargo.lock
++++ b/cmux-tui/crates/cmux-layout-reducer-ffi/Cargo.lock
+@@ -64,18 +64,18 @@ dependencies = [
+ ]
+ 
+ [[package]]
+-name = "cmux-cloud-machine"
++name = "cmux-cloud-handlers"
+ version = "0.1.0"
+ dependencies = [
++ "cmux-cloud-start-core",
+  "serde",
+  "serde_json",
+ ]
+ 
+ [[package]]
+-name = "cmux-cloud-handlers"
++name = "cmux-cloud-machine"
+ version = "0.1.0"
+ dependencies = [
+- "cmux-cloud-start-core",
+  "serde",
+  "serde_json",
+ ]
+@@ -232,15 +232,6 @@ dependencies = [
+  "foldhash",
+ ]
+ 
+-[[package]]
+-name = "hashlink"
+-version = "0.11.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "824e001ac4f3012dd16a264bec811403a67ca9deb6c102fc5049b32c4574b35f"
+-dependencies = [
+- "hashbrown",
+-]
+-
+ [[package]]
+ name = "itoa"
+ version = "1.0.18"
+@@ -323,7 +314,6 @@ dependencies = [
+  "bitflags",
+  "fallible-iterator",
+  "fallible-streaming-iterator",
+- "hashlink",
+  "libsqlite3-sys",
+  "smallvec",
+  "sqlite-wasm-rs",
