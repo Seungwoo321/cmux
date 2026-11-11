@@ -4805,8 +4805,9 @@ function TranscriptView({
         if (clicked === toggle) clicked = undefined;
       });
       const bottom = beginBottomStackFold(toggle, line, wasAtEnd);
-      // A keyboard click (detail 0) had no press: an older, abandoned one is not its place.
-      foldAnchor.current = clickFold(line, event.detail > 0 ? pressed : undefined);
+      // A keyboard click (detail 0) had no press: an older, abandoned one is not its place. The hold's
+      // clock starts once the toggle's change is drawn, however slow that render is (foldAnchor.ts).
+      foldAnchor.current = clickFold(line, event.detail > 0 ? pressed : undefined, undefined, toggle);
       holdTop.current = node?.scrollTop;
       pressed = undefined;
       if (!bottom) keepFoldRoom();
@@ -4819,7 +4820,7 @@ function TranscriptView({
     const notePressed = (event: PointerEvent) => {
       const toggle = event.button === 0 && node ? foldToggleAt(event.target, node) : undefined;
       pressedAt = toggle ? { x: event.clientX, y: event.clientY } : undefined;
-      pressed = toggle ? holdFold(foldHoldTarget(toggle, node ?? undefined)) : undefined;
+      pressed = toggle ? holdFold(foldHoldTarget(toggle, node ?? undefined), undefined, toggle) : undefined;
     };
     const dropPressed = () => {
       pressed = undefined;
@@ -4837,7 +4838,9 @@ function TranscriptView({
       const regroup = (event as CustomEvent<unknown>).detail;
       if (isRegroupHold(regroup)) {
         if (followingRef.current || foldHolding(foldAnchor.current)) return;
-        foldAnchor.current = { ...holdFold(header), top: regroup.top };
+        const hold = holdFold(header);
+        hold.top = regroup.top;
+        foldAnchor.current = hold;
         holdTop.current = node.scrollTop;
         return;
       }
@@ -4847,7 +4850,7 @@ function TranscriptView({
       const toggle = sameClick ? clicked! : header;
       const bottom = bottomStackFold.current?.toggle === header ? true : beginBottomStackFold(toggle, header, wasAtEnd);
       // The click that asked for it already holds this line at the place it was pressed at: keep it.
-      foldAnchor.current = clickFold(header, foldAnchor.current);
+      foldAnchor.current = clickFold(header, foldAnchor.current, undefined, toggle);
       holdTop.current = node.scrollTop;
       if (!bottom) keepFoldRoom();
     };
